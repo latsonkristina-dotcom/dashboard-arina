@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Статус доставки — АРИНА</title>
+<style>
+  :root {
+    --accent: #1d4ed8;
+    --bg: #f6f7fb;
+    --card: #ffffff;
+    --border: #e5e7eb;
+    --text: #111827;
+    --muted: #6b7280;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    padding: 24px;
+  }
+  .wrap { max-width: 1180px; margin: 0 auto; }
+  header { margin-bottom: 24px; }
+  header h1 { font-size: 22px; margin: 0 0 4px; }
+  header p { margin: 0; color: var(--muted); font-size: 14px; }
+
+  .truck-wrap { margin: 10px 0 14px; }
+  .truck-wrap svg { width: 100%; max-width: 620px; height: auto; display: block; }
+
+  .summary {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 12px;
+    margin-bottom: 24px;
+  }
+  .summary .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 16px;
+  }
+  .summary .card .num { font-size: 24px; font-weight: 700; }
+  .summary .card .label { font-size: 12.5px; color: var(--muted); margin-top: 2px; }
+
+  .controls {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 16px;
+    align-items: center;
+  }
+  .controls input[type=text] {
+    flex: 1;
+    min-width: 220px;
+    padding: 9px 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 14px;
+  }
+  .controls select {
+    padding: 9px 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 14px;
+    background: white;
+  }
+
+  .grid { display: flex; flex-direction: column; gap: 12px; }
+
+  .row-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px 18px;
+  }
+  .row-card.active-transit {
+    border: 2px solid #dc2626;
+    box-shadow: 0 0 0 3px rgba(220,38,38,0.08);
+  }
+  .row-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+  .row-id { font-weight: 700; font-size: 15px; }
+  .row-sub { color: var(--muted); font-size: 13px; margin-top: 3px; line-height: 1.5; }
+  .row-sub .supplier { font-weight: 700; color: var(--text); }
+  .row-sub .goods { color: #1d4ed8; font-weight: 600; }
+  .row-sub .sub-dim { color: var(--muted); }
+  .note { color: #dc2626; font-weight: 600; font-size: 12.5px; margin-top: 4px; }
+  .badge {
+    display: inline-block;
+    padding: 4px 11px;
+    border-radius: 999px;
+    font-size: 12.5px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .meta {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 8px 16px;
+    font-size: 13px;
+    margin-bottom: 14px;
+  }
+  .meta div span.k { color: var(--muted); display: block; font-size: 11.5px; }
+  .meta div span.v { font-weight: 500; }
+
+  .timeline { display: flex; align-items: center; margin-top: 4px; }
+  .step { flex: 1; text-align: center; position: relative; }
+  .step .dot {
+    width: 22px; height: 22px; border-radius: 50%;
+    background: #e5e7eb; color: white; font-size: 12px;
+    display: flex; align-items: center; justify-content: center;
+    margin: 0 auto 6px; font-weight: 700;
+  }
+  .step.done .dot { background: #16a34a; }
+  .step.current .dot { background: var(--accent); }
+  .step .lbl { font-size: 11px; color: var(--muted); }
+  .step .date { font-size: 11.5px; font-weight: 600; margin-top: 1px; }
+  .step .line {
+    position: absolute; top: 11px; left: -50%; width: 100%; height: 2px;
+    background: #e5e7eb; z-index: -1;
+  }
+  .step:first-child .line { display: none; }
+  .step.done .line { background: #16a34a; }
+
+  /* этап с датой в будущем — план, галочки нет */
+  .step.planned .dot {
+    background: #ffffff;
+    border: 2px dashed #9ca3af;
+    box-sizing: border-box;
+  }
+  .step.planned .date { color: var(--muted); font-weight: 500; }
+
+  /* «Прибытие на таможню» ещё не наступило — выделяем красным */
+  .step.customs-pending .dot { border-color: #dc2626; }
+  .step.customs-pending .lbl { color: #dc2626; font-weight: 700; }
+  .step.customs-pending .date { color: #dc2626; font-weight: 700; }
+  .step.customs-pending .plan-tag {
+    color: #dc2626;
+    background: #fef2f2;
+    border-color: #fecaca;
+  }
+  .plan-tag {
+    display: inline-block;
+    margin-top: 3px;
+    padding: 1px 7px;
+    border-radius: 999px;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    color: #6b7280;
+    background: #f3f4f6;
+    border: 1px solid #e5e7eb;
+  }
+
+  .empty { text-align: center; color: var(--muted); padding: 40px; }
+  footer { text-align: center; color: var(--muted); font-size: 12px; margin-top: 28px; padding-bottom: 12px; }
+
+  /* ---------- Мобильная версия ---------- */
+  @media (max-width: 640px) {
+    body { padding: 0; }
+    .wrap { max-width: 100%; }
+
+    header { padding: 14px 14px 4px; margin-bottom: 12px; }
+    header h1 { font-size: 17px; line-height: 1.3; }
+    header p { font-size: 12px; }
+    .truck-wrap { margin: 8px 0 10px; }
+    .truck-wrap svg { max-width: 100%; }
+    .row-card.active-transit { border-width: 2px; }
+
+    .summary {
+      grid-template-columns: repeat(2, 1fr);
+      gap: 8px;
+      padding: 0 14px;
+      margin-bottom: 14px;
+    }
+    .summary .card { padding: 10px 12px; }
+    .summary .card .num { font-size: 19px; }
+    .summary .card .label { font-size: 11px; }
+
+    .controls {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      background: var(--bg);
+      padding: 8px 14px 10px;
+      margin: 0 0 10px;
+      flex-direction: column;
+      gap: 8px;
+      box-shadow: 0 4px 8px -6px rgba(0,0,0,0.15);
+    }
+    .controls input[type=text],
+    .controls select {
+      width: 100%;
+      min-width: 0;
+      font-size: 16px; /* предотвращает авто-зум на iOS при фокусе */
+      padding: 11px 12px;
+    }
+
+    .grid { padding: 0 14px; gap: 10px; }
+
+    .row-card { padding: 13px 14px; border-radius: 10px; }
+    .row-id { font-size: 14px; }
+    .row-sub { font-size: 12px; }
+    .note { font-size: 11.5px; }
+    .badge { font-size: 11.5px; padding: 3px 9px; }
+
+    .meta {
+      grid-template-columns: repeat(2, 1fr);
+      gap: 8px 10px;
+      font-size: 12px;
+      margin-bottom: 12px;
+    }
+
+    .timeline { margin-top: 2px; }
+    .step .dot { width: 18px; height: 18px; font-size: 10px; margin-bottom: 4px; }
+    .step .lbl { font-size: 9px; line-height: 1.2; }
+    .step .date { font-size: 9.5px; }
+    .step .line { top: 9px; }
+    .plan-tag { font-size: 8.5px; padding: 1px 5px; margin-top: 2px; }
+
+    .empty { padding: 30px 14px; }
+    footer { padding: 0 14px 16px; }
+  }
+
+  /* очень узкие экраны — подписи шагов таймлайна короче не влезают, скрываем даты под точками */
+  @media (max-width: 380px) {
+    .step .date { display: none; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Статус доставки — АРИНА</h1>
+    <div class="truck-wrap">
+      <svg viewBox="0 0 910 272" xmlns="http://www.w3.org/2000/svg" role="img"
+           aria-label="Мультяшный грузовик с коробками груза"
+           font-family="Arial, Helvetica, sans-serif">
+        <defs>
+          <clipPath id="trailerClip">
+            <rect x="26" y="46" width="560" height="148" rx="6"/>
+          </clipPath>
+        </defs>
+
+        <!-- ===== РАМА И КОЛЁСА (рисуем первыми, кузов ляжет поверх) ===== -->
+        <rect x="20" y="192" width="864" height="16" rx="6" fill="#374151"/>
+        <g fill="#1f2937">
+          <circle cx="120" cy="226" r="28"/><circle cx="250" cy="226" r="28"/>
+          <circle cx="470" cy="226" r="28"/><circle cx="806" cy="226" r="28"/>
+        </g>
+        <g fill="#d1d5db">
+          <circle cx="120" cy="226" r="12"/><circle cx="250" cy="226" r="12"/>
+          <circle cx="470" cy="226" r="12"/><circle cx="806" cy="226" r="12"/>
+        </g>
+        <g fill="#6b7280">
+          <circle cx="120" cy="226" r="5"/><circle cx="250" cy="226" r="5"/>
+          <circle cx="470" cy="226" r="5"/><circle cx="806" cy="226" r="5"/>
+        </g>
+
+        <!-- ===== КУЗОВ ===== -->
+        <rect x="20" y="40" width="572" height="160" rx="10" fill="#fffaf7"/>
+
+        <g clip-path="url(#trailerClip)">
+          <!-- мелкие коробки в глубине -->
+          <g transform="rotate(-10 128 66)"><rect x="108" y="52" width="40" height="28" rx="2" fill="#c68642" stroke="#8b5a2b" stroke-width="1.8"/></g>
+          <g transform="rotate(8 267 62)"><rect x="250" y="50" width="34" height="24" rx="2" fill="#d9a066" stroke="#8b5a2b" stroke-width="1.8"/></g>
+          <g transform="rotate(-7 435 65)"><rect x="417" y="52" width="36" height="26" rx="2" fill="#c68642" stroke="#8b5a2b" stroke-width="1.8"/></g>
+          <g transform="rotate(11 171 69)"><rect x="158" y="58" width="26" height="22" rx="2" fill="#e0ac69" stroke="#8b5a2b" stroke-width="1.8"/></g>
+          <g transform="rotate(-5 586 140)"><rect x="562" y="110" width="48" height="60" rx="2" fill="#d9a066" stroke="#8b5a2b" stroke-width="1.8"/></g>
+          <g transform="rotate(9 44 178)"><rect x="24" y="160" width="40" height="36" rx="2" fill="#c68642" stroke="#8b5a2b" stroke-width="1.8"/></g>
+
+          <!-- верхний ряд -->
+          <g transform="rotate(6 70 99)"><rect x="36" y="74" width="68" height="50" rx="3" fill="#c68642" stroke="#7c4a1e" stroke-width="2"/><line x1="36" y1="88" x2="104" y2="88" stroke="#7c4a1e" stroke-width="1.6"/><text x="70" y="109" text-anchor="middle" font-size="14" font-weight="700" fill="#5b3410">брюки</text></g>
+          <g transform="rotate(-5 144 106)"><rect x="112" y="84" width="64" height="44" rx="3" fill="#e0ac69" stroke="#8b5a2b" stroke-width="2"/><line x1="112" y1="96" x2="176" y2="96" stroke="#8b5a2b" stroke-width="1.6"/><text x="144" y="116" text-anchor="middle" font-size="13" font-weight="700" fill="#5b3410">шерсть</text></g>
+          <g transform="rotate(4 224 95)"><rect x="186" y="68" width="76" height="54" rx="3" fill="#d9a066" stroke="#8b5a2b" stroke-width="2"/><line x1="186" y1="83" x2="262" y2="83" stroke="#8b5a2b" stroke-width="1.6"/><text x="224" y="106" text-anchor="middle" font-size="14" font-weight="700" fill="#5b3410">Foshan</text></g>
+          <g transform="rotate(-7 303 103)"><rect x="272" y="80" width="62" height="46" rx="3" fill="#c68642" stroke="#7c4a1e" stroke-width="2"/><line x1="272" y1="93" x2="334" y2="93" stroke="#7c4a1e" stroke-width="1.6"/><text x="303" y="114" text-anchor="middle" font-size="13" font-weight="700" fill="#5b3410">Арина</text></g>
+          <g transform="rotate(5 381 96)"><rect x="344" y="70" width="74" height="52" rx="3" fill="#e0ac69" stroke="#8b5a2b" stroke-width="2"/><line x1="344" y1="85" x2="418" y2="85" stroke="#8b5a2b" stroke-width="1.6"/><text x="381" y="107" text-anchor="middle" font-size="14" font-weight="700" fill="#5b3410">Lamoda</text></g>
+          <g transform="rotate(-4 461 104)"><rect x="428" y="82" width="66" height="44" rx="3" fill="#d9a066" stroke="#8b5a2b" stroke-width="2"/><line x1="428" y1="94" x2="494" y2="94" stroke="#8b5a2b" stroke-width="1.6"/><text x="461" y="114" text-anchor="middle" font-size="13" font-weight="700" fill="#5b3410">Вадим</text></g>
+          <g transform="rotate(6 541 98)"><rect x="504" y="72" width="74" height="52" rx="3" fill="#c68642" stroke="#7c4a1e" stroke-width="2"/><line x1="504" y1="87" x2="578" y2="87" stroke="#7c4a1e" stroke-width="1.6"/></g>
+
+          <!-- нижний ряд -->
+          <g transform="rotate(-7 70 161)"><rect x="32" y="132" width="76" height="58" rx="3" fill="#e0ac69" stroke="#8b5a2b" stroke-width="2"/><line x1="32" y1="148" x2="108" y2="148" stroke="#8b5a2b" stroke-width="1.6"/><text x="70" y="172" text-anchor="middle" font-size="14" font-weight="700" fill="#5b3410">куртки</text></g>
+          <g transform="rotate(5 145 166)"><rect x="112" y="142" width="66" height="48" rx="3" fill="#d9a066" stroke="#8b5a2b" stroke-width="2"/><line x1="112" y1="155" x2="178" y2="155" stroke="#8b5a2b" stroke-width="1.6"/><text x="145" y="177" text-anchor="middle" font-size="13" font-weight="700" fill="#5b3410">джинсы</text></g>
+          <g transform="rotate(-4 225 160)"><rect x="182" y="130" width="86" height="60" rx="3" fill="#c68642" stroke="#7c4a1e" stroke-width="2"/><line x1="182" y1="147" x2="268" y2="147" stroke="#7c4a1e" stroke-width="1.6"/><text x="225" y="172" text-anchor="middle" font-size="14" font-weight="700" fill="#5b3410">Hangzhou</text></g>
+          <g transform="rotate(7 305 167)"><rect x="274" y="144" width="62" height="46" rx="3" fill="#e0ac69" stroke="#8b5a2b" stroke-width="2"/><line x1="274" y1="157" x2="336" y2="157" stroke="#8b5a2b" stroke-width="1.6"/><text x="305" y="178" text-anchor="middle" font-size="14" font-weight="700" fill="#5b3410">Jane</text></g>
+          <g transform="rotate(-5 381 161)"><rect x="342" y="132" width="78" height="58" rx="3" fill="#d9a066" stroke="#8b5a2b" stroke-width="2"/><line x1="342" y1="148" x2="420" y2="148" stroke="#8b5a2b" stroke-width="1.6"/><text x="381" y="172" text-anchor="middle" font-size="14" font-weight="700" fill="#5b3410">ботинки</text></g>
+          <g transform="rotate(4 459 166)"><rect x="424" y="142" width="70" height="48" rx="3" fill="#c68642" stroke="#7c4a1e" stroke-width="2"/><line x1="424" y1="155" x2="494" y2="155" stroke="#7c4a1e" stroke-width="1.6"/></g>
+          <g transform="rotate(-6 538 162)"><rect x="498" y="134" width="80" height="56" rx="3" fill="#e0ac69" stroke="#8b5a2b" stroke-width="2"/><line x1="498" y1="149" x2="578" y2="149" stroke="#8b5a2b" stroke-width="1.6"/><text x="538" y="173" text-anchor="middle" font-size="13" font-weight="700" fill="#5b3410">Виолетта</text></g>
+        </g>
+
+        <!-- красная рамка кузова поверх коробок -->
+        <rect x="20" y="40" width="572" height="160" rx="10" fill="none" stroke="#dc2626" stroke-width="7"/>
+
+        <!-- ===== КАБИНА (мультяшная, белая с красной обводкой) ===== -->
+        <!-- крупный округлый нос-капот, как в мультфильме -->
+        <path d="M 600,200 L 600,70 Q 600,46 626,46 L 712,46 Q 738,46 738,70 L 738,112
+                 L 856,112 Q 888,112 888,144 L 888,192 Q 888,200 880,200 Z"
+              fill="#ffffff" stroke="#dc2626" stroke-width="7" stroke-linejoin="round"/>
+
+        <!-- зеркало -->
+        <path d="M 738,72 L 756,66" stroke="#dc2626" stroke-width="4.5" stroke-linecap="round"/>
+        <rect x="752" y="50" width="17" height="28" rx="5" fill="#ffffff" stroke="#dc2626" stroke-width="4"/>
+
+        <!-- лобовое стекло -->
+        <rect x="614" y="60" width="108" height="48" rx="11" fill="#fbcfe8" stroke="#dc2626" stroke-width="3.5"/>
+        <path d="M 628,106 L 664,62 L 678,62 L 642,106 Z" fill="#ffffff" opacity="0.6"/>
+        <path d="M 684,106 L 712,66 L 719,70 L 693,106 Z" fill="#ffffff" opacity="0.45"/>
+
+        <!-- дверь -->
+        <rect x="618" y="122" width="100" height="70" rx="9" fill="none" stroke="#fca5a5" stroke-width="3"/>
+        <path d="M 694,150 L 710,150" stroke="#fca5a5" stroke-width="4.5" stroke-linecap="round"/>
+
+        <!-- глаза (большие, мультяшные) -->
+        <circle cx="800" cy="142" r="25" fill="#ffffff" stroke="#dc2626" stroke-width="4"/>
+        <circle cx="809" cy="147" r="11" fill="#4a2c14"/>
+        <circle cx="813" cy="143" r="3.8" fill="#ffffff"/>
+        <circle cx="852" cy="148" r="20" fill="#ffffff" stroke="#dc2626" stroke-width="4"/>
+        <circle cx="859" cy="152" r="9" fill="#4a2c14"/>
+        <circle cx="862" cy="149" r="3.2" fill="#ffffff"/>
+
+        <!-- улыбка-решётка -->
+        <path d="M 776,172 Q 830,200 878,176 Q 864,192 830,194 Q 792,192 776,172 Z"
+              fill="#7f1d1d" stroke="#dc2626" stroke-width="4" stroke-linejoin="round"/>
+        <ellipse cx="830" cy="189" rx="15" ry="5.5" fill="#fca5a5"/>
+
+        <!-- поворотники -->
+        <circle cx="760" cy="180" r="5.5" fill="#f59e0b"/>
+        <circle cx="880" cy="160" r="5.5" fill="#f59e0b"/>
+      </svg>
+    </div>
+    <p>Обновлено: 22.08.2026 12:17</p>
+  </header>
+
+  <div class="summary" id="summary"></div>
+
+  <div class="controls">
+    <input type="text" id="search" placeholder="Поиск: № заявки, поставщик, перевозчик...">
+    <select id="statusFilter">
+      <option value="">Все статусы</option>
+    </select>
+  </div>
+
+  <div class="grid" id="grid"></div>
+  <div class="empty" id="emptyState" style="display:none;">Ничего не найдено</div>
+
+  <footer>Сгенерировано автоматически из Excel-файла заявок</footer>
+</div>
+
+<script>
+const DATA = [{"id": "1", "status": "ДОСТАВЛЕН", "status_key": "доставлен", "supplier": "Joroco Ltd", "goods": "13903069028", "note": "", "carrier": "OneGroupe", "transport": "ЖД", "origin": "", "customs_place": "", "dt_load": "03.07.2021", "dt_customs_arrival": null, "dt_customs_release": null, "dt_delivery_planned": "20.08.2021", "qty": 1107, "boxes": 111, "volume": 16, "amount": "45 380 ¥", "customs_plan": null}, {"id": "2", "status": "ДОСТАВЛЕН", "status_key": "доставлен", "supplier": "Foshan Ruiniu Clothing Co.,Ltd", "goods": "Luna", "note": "", "carrier": "OneGroupe", "transport": "ЖД", "origin": "", "customs_place": "", "dt_load": "07.09.2021", "dt_customs_arrival": null, "dt_customs_release": null, "dt_delivery_planned": "15.10.2021", "qty": 1186, "boxes": 120, "volume": 17, "amount": "83 762 ¥", "customs_plan": null}, {"id": "3", "status": "ДОСТАВЛЕН", "status_key": "доставлен", "supplier": "Guangzhou Guchen Garment", "goods": "Alin", "note": "", "carrier": "OneGroupe", "transport": "Авиа", "origin": "", "customs_place": "", "dt_load": "09.11.2021", "dt_customs_arrival": null, "dt_customs_release": null, "dt_delivery_planned": "19.11.2012", "qty": 701, "boxes": 77, "volume": null, "amount": "29 685 ¥", "customs_plan": null}, {"id": "4", "status": "ДОСТАВЛЕН", "status_key": "доставлен", "supplier": "Guangzhou Guchen Garment", "goods": "Alin", "note": "", "carrier": "OneGroupe", "transport": "ЖД", "origin": "", "customs_place": "", "dt_load": "02.12.2021", "dt_customs_arrival": null, "dt_customs_release": null, "dt_delivery_planned": "03.05.2022", "qty": 1702, "boxes": 47, "volume": 16, "amount": "$79 523,90", "customs_plan": null}, {"id": "5", "status": "ДОСТАВЛЕН", "status_key": "доставлен", "supplier": "Joroco Ltd", "goods": "", "note": "", "carrier": "OneGroupe", "transport": "ЖД", "origin": "", "customs_place": "", "dt_load": "02.12.2021", "dt_customs_arrival": null, "dt_customs_release": null, "dt_delivery_planned": "10.03.2022", "qty": 2287, "boxes": 231, "volume": 29, "amount": "¥530 576,50", "customs_plan": null}, {"id": "6", "status": "ДОСТАВЛЕН", "status_key": "доставлен", "supplier": "Guangzhou Bawan Leather Goods Co., Ltd.", "goods": "", "note": "", "carrier": "OneGroupe", "transport": "ЖД", "origin": "", "customs_place": "", "dt_load": "02.12.2021", "dt_customs_arrival": null, "dt_customs_release": null, "dt_delivery_planned": "25.02.2022", "qty": 1100, "boxes": 56, "volume": 6, "amount": "$25 696,30", "customs_plan": null}, {"id": "7", "status": "ДОСТАВЛЕН", "status_key": "доставлен", "supplier": "Foshan Ruiniu Clothing Co.,Ltd", "goods": "", "note": "", "carrier": "OneGroupe", "transport": "ЖД", "origin": "", "customs_place": "", "dt_load": "02.12.2021", "dt_customs_arrival": null, "dt_customs_release": null, "dt_delivery_planned": "10.03.2022", "qty": 579, "boxes": 61, "volume": 8, "amount": "$35 055,20", "customs_plan": null}, {"id": "8", "status": "ДОСТАВЛЕН", "status_key": "доставлен", "supplier": "Foshan Ruiniu Clothing Co.,Ltd", "goods": "", "note": "", "carrier": "ТИС", "transport": "море ВДЛ", "origin": "", "customs_place": "", "dt_load": "06.04.2022", "dt_customs_arrival": null, "dt_customs_release": null, "dt_delivery_planned": "10.06.2022", "qty": 1530, "boxes": 166, "volume": 22, "amount": "$91 164,10", "customs_plan": null}, {"id": "9", "status": "ДОСТАВЛЕН", "status_key": "доставлен", "supplier": "Guangzhou Guchen Garment", "goods": "Alin", "note": "", "carrier": "ТИС", "transport": "море ВДЛ", "origin": "", "customs_place": "", "dt_load": "06.04.2022", "dt_customs_arrival": null, "dt_customs_release": null, "dt_delivery_planned": "10.06.2022", "qty": 1026, "boxes": 150, "volume": 18, "amount": "$56 236,60", "customs_plan": null}, {"id": "10", "status": "ДОСТАВЛЕН", "status_key": "доставлен", "supplier": "Joroco Ltd", "goods": "", "note": "", "carrier": "ТИС", "transport": "море ВДЛ", "origin": "", "customs_place": "", "dt_load": "06.04.2022", "dt_customs_arrival": null, "dt_customs_release": null, "dt_delivery_planned": "10.06.2022", "qty": 875, "boxes": 88, "volume": 12, "amount": "¥238 350,00", "customs_plan": null}, {"id": "11", "status": "ДОСТАВЛЕН", "status_key": "доставлен", "supplier": "ACROSSRIVER GARMENT LIMITED", "goods": "Tom", "note": "", "carrier": "Optima", "transport": "море ВДЛ", "origin": "", "customs_place": "", "dt_load": "28.07.2022", "dt_customs_arrival": null, "dt_customs_release": null, "dt_delivery_planned": "19.09.2022", "qty": 1011, "boxes": 160, "volume": null, "amount": "¥433 485,93", "customs_plan": null}, {"id": "12", "status": "ДОСТАВЛЕН", "status_key": "доставлен", "supplier": "Guangzhou Guchen Garment", "goods": "Alin", "note": "", "carrier": "Optima", "transport": "море ВДЛ", "origin": "", "customs_place": "", "dt_load": "26.08.2022", "dt_customs_arrival": null, "dt_customs_release": null, "dt_delivery_planned": "21.11.2022", "qty": 2936, "boxes": 410, "volume": null, "amount": "¥1 025 455,10", "customs_plan": null}, {"id": "13", "status": "ДОСТАВЛЕН", "status_key": "доставлен", "supplier": "GUANGDONG LONGCHENG IMPORT AND EXPORT CO.,LTD", "goods": "", "note": "", "carrier": "Optima", "transport": "ЖД", "origin": "", "customs_place": "", "dt_load": "05.10.2022", "dt_customs_arrival": null, "dt_customs_release": null, "dt_delivery_planned": "01.12.2022", "qty": 2861, "boxes": 287, "volume": 41, "amount": "¥753 170,00", "customs_plan": null}, {"id": "14", "status": "ДОСТАВЛЕН", "status_key": "доставлен", "supplier": "Guangzhou Guchen Garment", "goods": "Alin", "note": "", "carrier": "Optima", "transport": "ЖД", "origin": "", "customs_place": "", "dt_load": "08.10.2022", "dt_customs_arrival": null, "dt_customs_release": null, "dt_delivery_planned": "22.12.2022", "qty": 3553, "boxes": 449, "volume": 55, "amount": "¥868 760,50", "customs_plan": null}, {"id": "15", "status": "ДОСТАВЛЕН", "status_key": "доставлен", "supplier": "Foshan Ruiniu Clothing Co.,Ltd", "goods": "Luna", "note": "", "carrier": "Optima", "transport": "ЖД", "origin": "", "customs_place": "", "dt_load": "25.10.2022", "dt_customs_arrival": null, "dt_customs_release": null, "dt_delivery_planned": "27.12.2022", "qty": 1725, "boxes": 174, "volume": 23, "amount": "¥700 875,00", "customs_plan": null}, {"id": "16", "status": "ДОСТАВЛЕН", "status_key": "доставлен", "supplier": "ACROSSRIVER GARMENT LIMITED", "goods": "Tom", "note": "", "carrier": "Optima", "transport": "ЖД", "origin": "", "customs_place": "", "dt_load": "25.10.2022", "dt_customs_arrival": null, "dt_customs_release": null, "dt_delivery_planned": "11.01.2023", "qty": 1554, "boxes": 215, "volume": 35, "amount": "¥637 725,00", "customs_plan": null}, {"id": "17", "status": "ДОСТАВЛЕН", "status_key": "доставлен", "supplier": "Foshan Ruiniu Clothing Co.,Ltd", "goods": "Luna", "note": "", "carrier": "Optima", "transport": "ЖД", "origin": "", "customs_place": "", "dt_load": "17.11.2022", "dt_customs_arrival": null, "dt_customs_release": null, "dt_delivery_planned": "07.02.2023", "qty": 900, "boxes": 93, "volume": 13, "amount": "¥297 000,00", "customs_plan": null}, {"id": "18", "status": "ДОСТАВЛЕН", "status_key": "доставлен", "supplier": "ACROSSRIVER GARMENT LIMITED", "goods": "Tom", "note": "", "carrier": "Optima", "transport": "ЖД", "origin": "", "customs_place": "", "dt_load": "16.11.2022", "dt_customs_arrival": null, "dt_customs_release": null, "dt_delivery_planned": "07.02.2023", "qty": 1144, "boxes": 157, "volume": 26, "amount": "¥480 480,00", "customs_plan": null}, {"id": "19", "status": "ДОСТАВЛЕН", "status_key": "доставлен", "supplier": "Guangzhou Bawan Leather Goods Co., Ltd.", "goods": "", "note": "", "carrier": "Optima", "transport": "ЖД", "origin": "", "customs_place": "", "dt_load": "23.11.2022", "dt_customs_arrival": null, "dt_customs_release": null, "dt_delivery_planned": "07.02.2023", "qty": 600, "boxes": 29, "volume": 3, "amount": "¥84 750,00", "customs_plan": null}, {"id": "20", "status": "ДОСТАВЛЕН", "status_key": "доставлен", "supplier": "Guangzhou Bawan Leather Goods Co., Ltd.", "goods": "", "note": "", "carrier": "Optima", "transport": "ЖД", "origin": "", "customs_place": "", "dt_load": "12.04.2023", "dt_customs_arrival": null, "dt_customs_release": null, "dt_delivery_planned": "14.05.2023", "qty": 3210, "boxes": 39, "volume": 6, "amount": "¥104 666,00", "customs_plan": null}, {"id": "21", "status": "ДОСТАВЛЕН", "status_key": "доставлен", "supplier": "GUANGDONG LONGCHENG IMPORT AND EXPORT CO.,LTD", "goods": "", "note": "", "carrier": "Optima", "transport": "ЖД", "origin": "", "customs_place": "", "dt_load": "06.03.2023", "dt_customs_arrival": null, "dt_customs_release": null, "dt_delivery_planned": "21.04.2023", "qty": 4465, "boxes": 447, "volume": 62, "amount": "¥1 084 780,00", "customs_plan": null}, {"id": "22", "status": "ДОСТАВЛЕН", "status_key": "доставлен", "supplier": "Турция", "goods": "Umut", "note": "", "carrier": "Optima", "transport": "", "origin": "", "customs_place": "", "dt_load": "07.03.2023", "dt_customs_arrival": null, "dt_customs_release": null, "dt_delivery_planned": "30.03.2023", "qty": 7136, "boxes": 323, "volume": 23, "amount": "₺2 037 836,99", "customs_plan": null}, {"id": "23", "status": "ДОСТАВЛЕН", "status_key": "доставлен", "supplier": "ACROSSRIVER GARMENT LIMITED", "goods": "Tom", "note": "", "carrier": "Optima", "transport": "", "origin": "", "customs_place": "", "dt_load": "18.08.2023", "dt_customs_arrival": null, "dt_customs_release": null, "dt_delivery_planned": "26.09.2023", "qty": 2999, "boxes": 378, "volume": 62, "amount": "¥1 277 480,00", "customs_plan": null}, {"id": "24", "status": "ДОСТАВЛЕН", "status_key": "доставлен", "supplier": "Турция", "goods": "Umut", "note": "", "carrier": "Optima", "transport": "", "origin": "", "customs_place": "", "dt_load": "24.10.2023", "dt_customs_arrival": null, "dt_customs_release": null, "dt_delivery_planned": "10.11.2023", "qty": 4267, "boxes": 172, "volume": 16, "amount": "₺1 960 523,00", "customs_plan": null}, {"id": "25", "status": "ДОСТАВЛЕН", "status_key": "доставлен", "supplier": "ACROSSRIVER GARMENT LIMITED", "goods": "Tom", "note": "", "carrier": "Примум", "transport": "АВТО", "origin": "", "customs_place": "", "dt_load": "07.11.2023", "dt_customs_arrival": null, "dt_customs_release": null, "dt_delivery_planned": "03.12.2023", "qty": 1027, "boxes": 139, "volume": 23, "amount": "¥418 780,00", "customs_plan": null}, {"id": "26", "status": "ДОСТАВЛЕН", "status_key": "доставлен", "supplier": "Guangzhou Bawan Leather Goods Co., Ltd.", "goods": "Emma", "note": "", "carrier": "Примум", "transport": "АВТО", "origin": "", "customs_place": "", "dt_load": "25.11.2023", "dt_customs_arrival": null, "dt_customs_release": null, "dt_delivery_planned": "30.12.2023", "qty": 600, "boxes": 24, "volume": 3, "amount": "¥85 170,00", "customs_plan": null}, {"id": "27", "status": "ДОСТАВЛЕН", "status_key": "доставлен", "supplier": "GUANGDONG LONGCHENG IMPORT AND EXPORT CO.,LTD", "goods": "обувь", "note": "", "carrier": "Примум", "transport": "АВТО", "origin": "", "customs_place": "", "dt_load": "25.11.2023", "dt_customs_arrival": null, "dt_customs_release": null, "dt_delivery_planned": "30.12.2023", "qty": 3088, "boxes": 311, "volume": 42, "amount": "¥750 738,00", "customs_plan": null}, {"id": "28", "status": "ДОСТАВЛЕН", "status_key": "доставлен", "supplier": "ACROSSRIVER GARMENT LIMITED", "goods": "", "note": "", "carrier": "Траско", "transport": "АВТО сборка", "origin": "", "customs_place": "AKULOVSKIY", "dt_load": "31.01.2024", "dt_customs_arrival": null, "dt_customs_release": null, "dt_delivery_planned": "03.03.2024", "qty": "1 572", "boxes": 160, "volume": 22, "amount": "¥654 490,00", "customs_plan": null}, {"id": "29", "status": "ДОСТАВЛЕН", "status_key": "доставлен", "supplier": "GUANGDONG LONGCHENG IMPORT AND EXPORT CO.,LTD", "goods": "обувь", "note": "", "carrier": "Церта", "transport": "ЖД", "origin": "Guangzhou", "customs_place": "Электроугли", "dt_load": "28.01.2024", "dt_customs_arrival": null, "dt_customs_release": null, "dt_delivery_planned": "13.03.2024", "qty": "4 310", "boxes": 431, "volume": null, "amount": "¥1 090 550,00", "customs_plan": null}, {"id": "30", "status": "ДОСТАВЛЕН", "status_key": "доставлен", "supplier": "GLOBE DENİM TEKSTİL İTHALAT İHRACAT TİCARET LİMİTED ŞİRKETİ", "goods": "Turkey", "note": "", "carrier": "Траско", "transport": "АВТО сборка", "origin": "Istanbul", "customs_place": "Домодедово", "dt_load": "28.03.2024", "dt_customs_arrival": null, "dt_customs_release": null, "dt_delivery_planned": "17.04.2024", "qty": 1118, "boxes": 61, "volume": 4, "amount": "$16 981,80", "customs_plan": null}, {"id": "31", "status": "ДОСТАВЛЕН", "status_key": "доставлен", "supplier": "Образцы", "goods": "", "note": "", "carrier": "Церта", "transport": "Авиа", "origin": "Guangzhou", "customs_place": "Пулково", "dt_load": "28.03.2024", "dt_customs_arrival": null, "dt_customs_release": "01.04.2024", "dt_delivery_planned": "02.04.2024", "qty": 6, "boxes": 1, "volume": 0, "amount": "¥3 150,00", "customs_plan": null}, {"id": "32_1", "status": "ДОСТАВЛЕН", "status_key": "доставлен", "supplier": "GUANGDONG LONGCHENG IMPORT AND EXPORT CO.,LTD", "goods": "обувь", "note": "", "carrier": "Церта", "transport": "ЖД", "origin": "Guangzhou", "customs_place": "Шушары", "dt_load": "29.05.2024", "dt_customs_arrival": null, "dt_customs_release": "16.08.2024", "dt_delivery_planned": "19.08.2024", "qty": 4440, "boxes": 440, "volume": 59, "amount": "¥1 090 222,00", "customs_plan": null}, {"id": "32_2", "status": "ДОСТАВЛЕН", "status_key": "доставлен", "supplier": "GUANGDONG LONGCHENG IMPORT AND EXPORT CO.,LTD", "goods": "образец", "note": "", "carrier": "Церта", "transport": "ЖД", "origin": "Guangzhou", "customs_place": "Шушары", "dt_load": "29.05.2024", "dt_customs_arrival": null, "dt_customs_release": "15.08.2024", "dt_delivery_planned": "19.08.2024", "qty": 11, "boxes": 1, "volume": 0, "amount": "¥524,00", "customs_plan": null}, {"id": "33_1", "status": "ДОСТАВЛЕН", "status_key": "доставлен", "supplier": "Foshan Ruiniu Clothing Co.,Ltd", "goods": "Cassie", "note": "", "carrier": "Optima", "transport": "АВТО", "origin": "Guangdong", "customs_place": "Chelyabinskij", "dt_load": "27.07.2024", "dt_customs_arrival": null, "dt_customs_release": "23.08.2024", "dt_delivery_planned": "26.08.2024", "qty": 3803, "boxes": 361, "volume": 49, "amount": "¥1 111 895,00", "customs_plan": null}, {"id": "33_2", "status": "ДОСТАВЛЕН", "status_key": "доставлен", "supplier": "Foshan Ruiniu Clothing Co.,Ltd", "goods": "образец", "note": "", "carrier": "Optima", "transport": "АВТО", "origin": "Guangdong", "customs_place": "Chelyabinskij", "dt_load": "27.07.2024", "dt_customs_arrival": null, "dt_customs_release": "22.08.2024", "dt_delivery_planned": "26.08.2024", "qty": 1, "boxes": 1, "volume": 0, "amount": "¥50,00", "customs_plan": null}, {"id": "34", "status": "ДОСТАВЛЕН", "status_key": "доставлен", "supplier": "GUANGDONG LONGCHENG IMPORT AND EXPORT CO.,LTD", "goods": "обувь", "note": "", "carrier": "Optima", "transport": "АВТО", "origin": "Guangdong", "customs_place": "Chelyabinskij", "dt_load": "31.07.2024", "dt_customs_arrival": null, "dt_customs_release": "22.08.2024", "dt_delivery_planned": "26.08.2024", "qty": 2159, "boxes": 218, "volume": 30, "amount": "¥629 435,00", "customs_plan": null}, {"id": "35", "status": "ДОСТАВЛЕН", "status_key": "доставлен", "supplier": "GLOBE DENİM TEKSTİL İTHALAT İHRACAT TİCARET LİMİTED ŞİRKETİ", "goods": "Turkey", "note": "", "carrier": "Траско", "transport": "АВТО сборка", "origin": "Istanbul", "customs_place": "Истра", "dt_load": "27.11.2024", "dt_customs_arrival": null, "dt_customs_release": "25.12.2024", "dt_delivery_planned": "26.12.2024", "qty": 943, "boxes": 37, "volume": 4, "amount": "$13 058,00", "customs_plan": null}, {"id": "36", "status": "ДОСТАВЛЕН", "status_key": "доставлен", "supplier": "DONGGUAN QIANFAN TRADING CO.,LTD", "goods": "образец", "note": "", "carrier": "СДЭК", "transport": "АВИА", "origin": "Guangdong", "customs_place": "Химки", "dt_load": "13.12.2024", "dt_customs_arrival": null, "dt_customs_release": null, "dt_delivery_planned": "16.01.2025", "qty": 1, "boxes": 1, "volume": null, "amount": null, "customs_plan": null}, {"id": "37", "status": "ДОСТАВЛЕН", "status_key": "доставлен", "supplier": "GUANGDONG LONGCHENG IMPORT AND EXPORT CO.,LTD", "goods": "обувь", "note": "", "carrier": "Транзит", "transport": "ЖД", "origin": "Guangzhou", "customs_place": "Шушары", "dt_load": "06.01.2025", "dt_customs_arrival": "15.02.2025", "dt_customs_release": "16.02.2025", "dt_delivery_planned": "19.02.2025", "qty": 4340, "boxes": 434, "volume": 59, "amount": "1 111 600 ¥", "customs_plan": null}, {"id": "38", "status": "ДОСТАВЛЕН", "status_key": "доставлен", "supplier": "Hangzhou Linping Jihua Clothing Co., Ltd.", "goods": "образцы", "note": "", "carrier": "Транзит", "transport": "ЖД", "origin": "Guangzhou", "customs_place": "Шушары", "dt_load": "06.01.2025", "dt_customs_arrival": "15.02.2025", "dt_customs_release": "16.02.2025", "dt_delivery_planned": "19.02.2025", "qty": 1, "boxes": 1, "volume": 0, "amount": "50 ¥", "customs_plan": null}, {"id": "39", "status": "ДОСТАВЛЕН", "status_key": "доставлен", "supplier": "Guangzhou Bawan Leather Goods Co., Ltd.", "goods": "Bawan", "note": "", "carrier": "Транзит", "transport": "ЖД", "origin": "Guangzhou", "customs_place": "Шушары", "dt_load": "06.01.2025", "dt_customs_arrival": "15.02.2025", "dt_customs_release": "17.02.2025", "dt_delivery_planned": "19.02.2025", "qty": 600, "boxes": 24, "volume": 3, "amount": "85 170 ¥", "customs_plan": null}, {"id": "40", "status": "ДОСТАВЛЕН", "status_key": "доставлен", "supplier": "Foshan Ruiniu Clothing Co.,Ltd", "goods": "куртки", "note": "", "carrier": "Каруся", "transport": "АВТО", "origin": "Guangzhou", "customs_place": "КАНИ-КУРГАН", "dt_load": "18.01.2025", "dt_customs_arrival": "21.02.2025", "dt_customs_release": "22.02.2025", "dt_delivery_planned": "10.03.2025", "qty": 2115, "boxes": 131, "volume": 18, "amount": "544 070 ¥", "customs_plan": null}, {"id": "41", "status": "ДОСТАВЛЕН", "status_key": "доставлен", "supplier": "Hangzhou Linping Jihua Clothing Co., Ltd.", "goods": "образцы", "note": "", "carrier": "Каруся", "transport": "АВТО", "origin": "Guangzhou", "customs_place": "КАНИ-КУРГАН", "dt_load": "19.01.2025", "dt_customs_arrival": "21.02.2025", "dt_customs_release": "21.02.2025", "dt_delivery_planned": "10.03.2025", "qty": 1, "boxes": 1, "volume": 0, "amount": "100 ¥", "customs_plan": null}, {"id": "42", "status": "ДОСТАВЛЕН", "status_key": "доставлен", "supplier": "GUANGDONG LONGCHENG IMPORT AND EXPORT CO.,LTD", "goods": "обувь", "note": "", "carrier": "Каруся", "transport": "АВТО", "origin": "Guangzhou", "customs_place": "КАНИ-КУРГАН", "dt_load": "19.01.2025", "dt_customs_arrival": "21.02.2025", "dt_customs_release": "21.02.2025", "dt_delivery_planned": "10.03.2025", "qty": 1210, "boxes": 121, "volume": 18, "amount": "334 550 ¥", "customs_plan": null}, {"id": "43", "status": "ДОСТАВЛЕН", "status_key": "доставлен", "supplier": "DONGGUAN QIANFAN TRADING CO., LTD", "goods": "джинсы", "note": "", "carrier": "Каруся", "transport": "АВТО", "origin": "Guangzhou", "customs_place": "КАНИ-КУРГАН", "dt_load": "20.01.2025", "dt_customs_arrival": "21.02.2025", "dt_customs_release": "21.02.2025", "dt_delivery_planned": "10.03.2025", "qty": 3365, "boxes": 148, "volume": 13, "amount": "368 019 ¥", "customs_plan": null}, {"id": "44", "status": "ДОСТАВЛЕН", "status_key": "доставлен", "supplier": "Foshan Ruiniu Clothing Co.,Ltd", "goods": "куртки", "note": "", "carrier": "ФРД", "transport": "ЖД быстрое", "origin": "Foshan", "customs_place": "Москва Ярославская", "dt_load": "20.03.2025", "dt_customs_arrival": "08.04.2025", "dt_customs_release": "08.04.2025", "dt_delivery_planned": "09.04.2025", "qty": 900, "boxes": 54, "volume": 7, "amount": "245 000 ¥", "customs_plan": null}, {"id": "45", "status": "ДОСТАВЛЕН", "status_key": "доставлен", "supplier": "DONGGUAN QISHENG IMPORT AND EXPORT CO., LTD", "goods": "образец", "note": "", "carrier": "СДЭК", "transport": "АВИА", "origin": "Foshan", "customs_place": "Химки", "dt_load": "19.03.2025", "dt_customs_arrival": "25.03.2025", "dt_customs_release": "01.04.2025", "dt_delivery_planned": "07.04.2025", "qty": 1, "boxes": 1, "volume": null, "amount": "10 ¥", "customs_plan": null}, {"id": "46", "status": "ДОСТАВЛЕН", "status_key": "доставлен", "supplier": "Hangzhou Linping Jihua Clothing Co., Ltd.", "goods": "брюки", "note": "", "carrier": "Каруся", "transport": "АВТО", "origin": "Hangzhou", "customs_place": "КАНИ-КУРГАН", "dt_load": "02.04.2024", "dt_customs_arrival": "19.04.2024", "dt_customs_release": "19.04.2024", "dt_delivery_planned": "07.05.2024", "qty": 2514, "boxes": 78, "volume": 9, "amount": "246 338 ¥", "customs_plan": null}, {"id": "47", "status": "ДОСТАВЛЕН", "status_key": "доставлен", "supplier": "DONGGUAN QISHENG IMPORT AND EXPORT CO., LTD", "goods": "обвувь", "note": "", "carrier": "АПС", "transport": "АВТО сборка", "origin": "Guangdong", "customs_place": "Домодедово", "dt_load": "28.04.2025", "dt_customs_arrival": "29.05.2025", "dt_customs_release": "30.05.2025", "dt_delivery_planned": "30.05.2025", "qty": 1350, "boxes": 135, "volume": 16, "amount": "314 110 ¥", "customs_plan": null}, {"id": "48", "status": "ДОСТАВЛЕН", "status_key": "доставлен", "supplier": "DONGGUAN QISHENG IMPORT AND EXPORT CO., LTD", "goods": "обвувь", "note": "", "carrier": "АПС", "transport": "АВТО сборка", "origin": "Guangdong", "customs_place": "Вашутинский", "dt_load": "03.06.2025", "dt_customs_arrival": "23.06.2025", "dt_customs_release": "24.06.2025", "dt_delivery_planned": "25.06.2025", "qty": 2880, "boxes": 288, "volume": 43, "amount": "821 750 ¥", "customs_plan": null}, {"id": "49", "status": "ДОСТАВЛЕН", "status_key": "доставлен", "supplier": "Hangzhou Linping Jihua Clothing Co., Ltd.", "goods": "брюки", "note": "", "carrier": "Каруся", "transport": "АВТО", "origin": "Hangzhou", "customs_place": "КАНИ-КУРГАН", "dt_load": "17.06.2025", "dt_customs_arrival": "11.07.2025", "dt_customs_release": "11.07.2025", "dt_delivery_planned": "25.07.2025", "qty": 2149, "boxes": 41, "volume": 5, "amount": "225 805 ¥", "customs_plan": null}, {"id": "50", "status": "ДОСТАВЛЕН", "status_key": "доставлен", "supplier": "Foshan Ruiniu Clothing Co.,Ltd", "goods": "куртки", "note": "", "carrier": "Каруся", "transport": "АВТО", "origin": "Foshan", "customs_place": "КАНИ-КУРГАН", "dt_load": "19.06.2025", "dt_customs_arrival": "11.07.2025", "dt_customs_release": "11.07.2025", "dt_delivery_planned": "25.07.2025", "qty": 4349, "boxes": 547, "volume": 74, "amount": "1 440 415 ¥", "customs_plan": null}, {"id": "51", "status": "ДОСТАВЛЕН", "status_key": "доставлен", "supplier": "DONGGUAN QISHENG IMPORT AND EXPORT CO., LTD", "goods": "обвувь", "note": "", "carrier": "Капитан", "transport": "АВТО", "origin": "Guangdong", "customs_place": "Домодедово", "dt_load": "01.07.2025", "dt_customs_arrival": "28.07.2025", "dt_customs_release": "28.07.2025", "dt_delivery_planned": "29.07.2025", "qty": 4600, "boxes": 460, "volume": 65, "amount": "1 218 290 ¥", "customs_plan": null}, {"id": "52", "status": "ДОСТАВЛЕН", "status_key": "доставлен", "supplier": "DONGGUAN QIANFAN TRADING CO., LTD", "goods": "джинсы Jane", "note": "", "carrier": "Капитан", "transport": "АВТО", "origin": "Foshan", "customs_place": "Домодедово", "dt_load": "01.07.2025", "dt_customs_arrival": "28.07.2025", "dt_customs_release": "28.07.2025", "dt_delivery_planned": "29.07.2025", "qty": 6935, "boxes": 264, "volume": 20, "amount": "700 109 ¥", "customs_plan": null}, {"id": "53", "status": "ДОСТАВЛЕН", "status_key": "доставлен", "supplier": "Hangzhou Linping Jihua Clothing Co., Ltd.", "goods": "куртки, брюки", "note": "", "carrier": "Каруся", "transport": "АВТО", "origin": "Hangzhou", "customs_place": "КАНИ-КУРГАН", "dt_load": "30.06.2025", "dt_customs_arrival": "19.07.2025", "dt_customs_release": "23.07.2025", "dt_delivery_planned": "05.08.2025", "qty": 4683, "boxes": 300, "volume": 49, "amount": "909 500 ¥", "customs_plan": null}, {"id": "54", "status": "ДОСТАВЛЕН", "status_key": "доставлен", "supplier": "DONGGUAN QISHENG IMPORT AND EXPORT CO., LTD", "goods": "обувь", "note": "", "carrier": "Капитан", "transport": "АВТО сборка", "origin": "Dongguan", "customs_place": "Вашутинский", "dt_load": "14.07.2025", "dt_customs_arrival": "11.08.2025", "dt_customs_release": "11.08.2025", "dt_delivery_planned": "12.08.2025", "qty": 1400, "boxes": 140, "volume": 17, "amount": "306 800 ¥", "customs_plan": null}, {"id": "55", "status": "ДОСТАВЛЕН", "status_key": "доставлен", "supplier": "DONGGUAN QIANFAN TRADING CO.,LTD", "goods": "куртки", "note": "", "carrier": "Капитан", "transport": "АВТО сборка", "origin": "", "customs_place": "Вашутинский", "dt_load": "16.07.2025", "dt_customs_arrival": "11.08.2025", "dt_customs_release": "11.08.2025", "dt_delivery_planned": "12.08.2025", "qty": 598, "boxes": 53, "volume": 13, "amount": "238 250 ¥", "customs_plan": null}, {"id": "56", "status": "ДОСТАВЛЕН", "status_key": "доставлен", "supplier": "Hangzhou Linping Jihua Clothing Co., Ltd.", "goods": "брюки", "note": "", "carrier": "ФРД", "transport": "ЖД быстрое", "origin": "Hangzhou", "customs_place": "Москва Ярославская", "dt_load": "21.08.2025", "dt_customs_arrival": "17.09.2025", "dt_customs_release": "19.09.2025", "dt_delivery_planned": "22.09.2025", "qty": 2019, "boxes": 46, "volume": 6, "amount": "191 121 ¥", "customs_plan": null}, {"id": "57", "status": "ДОСТАВЛЕН", "status_key": "доставлен", "supplier": "Hangzhou Linping Jihua Clothing Co., Ltd.", "goods": "брюки", "note": "", "carrier": "ФРД", "transport": "АВТО сборка", "origin": "Hangzhou", "customs_place": "Новомосковский", "dt_load": "17.09.2025", "dt_customs_arrival": "11.11.2025", "dt_customs_release": "20.11.2025", "dt_delivery_planned": "21.11.2025", "qty": 2986, "boxes": 67, "volume": 8, "amount": "284 214 ¥", "customs_plan": null}, {"id": "58", "status": "ДОСТАВЛЕН", "status_key": "доставлен", "supplier": "DONGGUAN QIANFAN TRADING CO., LTD", "goods": "джинсы Jane", "note": "", "carrier": "АПС", "transport": "АВТО сборка", "origin": "Foshan", "customs_place": "Домодедово", "dt_load": "18.09.2025", "dt_customs_arrival": "14.10.2025", "dt_customs_release": "14.10.2025", "dt_delivery_planned": "15.10.2025", "qty": 4223, "boxes": 118, "volume": 9, "amount": "384 046 ¥", "customs_plan": null}, {"id": "59", "status": "ДОСТАВЛЕН", "status_key": "доставлен", "supplier": "Hangzhou Linping Jihua Clothing Co., Ltd.", "goods": "брюки", "note": "", "carrier": "АПС", "transport": "АВТО сборка", "origin": "Hangzhou", "customs_place": "Домодедово", "dt_load": "03.10.2025", "dt_customs_arrival": "24.10.2025", "dt_customs_release": "29.10.2025", "dt_delivery_planned": "30.10.2025", "qty": 2406, "boxes": 53, "volume": 6, "amount": "223 758 ¥", "customs_plan": null}, {"id": "60", "status": "ДОСТАВЛЕН", "status_key": "доставлен", "supplier": "DONGGUAN QISHENG IMPORT AND EXPORT CO., LTD", "goods": "обувь", "note": "", "carrier": "Капитан", "transport": "АВТО сборка", "origin": "Dongguan", "customs_place": "Акуловский", "dt_load": "11.10.2025", "dt_customs_arrival": "30.10.2025", "dt_customs_release": "31.10.2025", "dt_delivery_planned": "31.10.2025", "qty": 2310, "boxes": 231, "volume": 28, "amount": "573 170 ¥", "customs_plan": null}, {"id": "61", "status": "ДОСТАВЛЕН", "status_key": "доставлен", "supplier": "Hangzhou Linping Jihua Clothing Co., Ltd.", "goods": "брюки", "note": "", "carrier": "Капитан", "transport": "АВТО сборка", "origin": "Hangzhou", "customs_place": "Акуловский", "dt_load": "21.10.2025", "dt_customs_arrival": "13.11.2025", "dt_customs_release": "13.11.2025", "dt_delivery_planned": "13.11.2025", "qty": 2941, "boxes": 74, "volume": 9, "amount": "317 491 ¥", "customs_plan": null}, {"id": "62", "status": "ДОСТАВЛЕН", "status_key": "доставлен", "supplier": "DONGGUAN QIANFAN TRADING CO., LTD", "goods": "джинсы Jane", "note": "", "carrier": "Капитан", "transport": "АВТО сборка", "origin": "Foshan", "customs_place": "Акуловский", "dt_load": "10.11.2025", "dt_customs_arrival": "03.12.2025", "dt_customs_release": "04.12.2025", "dt_delivery_planned": "04.12.2025", "qty": 4105, "boxes": 154, "volume": 10, "amount": "414 179 ¥", "customs_plan": null}, {"id": "63", "status": "ДОСТАВЛЕН", "status_key": "доставлен", "supplier": "Hangzhou Linping Jihua Clothing Co., Ltd.", "goods": "брюки", "note": "", "carrier": "КВАНТУМПОСТ", "transport": "АВТО сборка", "origin": "Hangzhou", "customs_place": "Москва Ярославская", "dt_load": "17.11.2025", "dt_customs_arrival": "06.12.2025", "dt_customs_release": "12.12.2025", "dt_delivery_planned": "15.12.2025", "qty": 5361, "boxes": 142, "volume": 17, "amount": "610 530 ¥", "customs_plan": null}, {"id": "64", "status": "ДОСТАВЛЕН", "status_key": "доставлен", "supplier": "DONGGUAN LONGSHENG SUPPLY CHAIN CO.,LTD", "goods": "обувь", "note": "", "carrier": "Капитан", "transport": "АВТО сборка", "origin": "Dongguan", "customs_place": "Акуловский", "dt_load": "11.12.2025", "dt_customs_arrival": "04.01.2026", "dt_customs_release": "05.01.2026", "dt_delivery_planned": "06.01.2026", "qty": 2450, "boxes": 245, "volume": 31, "amount": "595 690 ¥", "customs_plan": null}, {"id": "65", "status": "ДОСТАВЛЕН", "status_key": "доставлен", "supplier": "Hangzhou Linping Jihua Clothing Co., Ltd.", "goods": "брюки", "note": "", "carrier": "Капитан", "transport": "АВТО сборка", "origin": "Hangzhou", "customs_place": "Акуловский", "dt_load": "10.12.2025", "dt_customs_arrival": "04.01.2026", "dt_customs_release": "05.01.2026", "dt_delivery_planned": "06.01.2026", "qty": 3434, "boxes": 138, "volume": 10, "amount": "374 306 ¥", "customs_plan": null}, {"id": "66", "status": "ДОСТАВЛЕН", "status_key": "доставлен", "supplier": "DONGGUAN QIANFAN TRADING CO., LTD", "goods": "Jane, брюки", "note": "", "carrier": "Капитан", "transport": "АВТО сборка", "origin": "Foshan", "customs_place": "Акуловский", "dt_load": "24.12.2025", "dt_customs_arrival": "28.01.2026", "dt_customs_release": "28.01.2026", "dt_delivery_planned": "29.01.2026", "qty": 3126, "boxes": 92, "volume": 6, "amount": "276 922 ¥", "customs_plan": null}, {"id": "67", "status": "ДОСТАВЛЕН", "status_key": "доставлен", "supplier": "Hangzhou Linping Jihua Clothing Co., Ltd.", "goods": "брюки, пиджаки", "note": "", "carrier": "APS", "transport": "АВТО сборка", "origin": "Hangzhou", "customs_place": "Акуловский", "dt_load": "29.12.2025", "dt_customs_arrival": "27.01.2026", "dt_customs_release": "27.01.2026", "dt_delivery_planned": "28.01.2026", "qty": 3802, "boxes": 151, "volume": 11, "amount": "501 470 ¥", "customs_plan": null}, {"id": "68", "status": "ДОСТАВЛЕН", "status_key": "доставлен", "supplier": "Hangzhou Qianyi Import and Export Co., Ltd.", "goods": "брюки, пиджаки", "note": "", "carrier": "Капитан", "transport": "АВТО сборка", "origin": "Hangzhou", "customs_place": "Акуловский", "dt_load": "09.01.2026", "dt_customs_arrival": "04.02.2026", "dt_customs_release": "15.02.2026", "dt_delivery_planned": "16.02.2026", "qty": 7461, "boxes": 288, "volume": 21, "amount": "787 557 ¥", "customs_plan": null}, {"id": "69", "status": "ДОСТАВЛЕН", "status_key": "доставлен", "supplier": "DONGGUAN LONGSHENG SUPPLY CHAIN CO.,LTD", "goods": "обувь", "note": "", "carrier": "Капитан", "transport": "АВТО сборка", "origin": "Dongguan", "customs_place": "Акуловский", "dt_load": "21.01.2026", "dt_customs_arrival": "17.02.2026", "dt_customs_release": "17.02.2026", "dt_delivery_planned": "21.02.2026", "qty": 1050, "boxes": 105, "volume": 15, "amount": "277 120 ¥", "customs_plan": null}, {"id": "70", "status": "ДОСТАВЛЕН", "status_key": "доставлен", "supplier": "Hangzhou Qianyi Import and Export Co., Ltd.", "goods": "брюки", "note": "", "carrier": "Капитан", "transport": "АВТО сборка", "origin": "Hangzhou", "customs_place": "Акуловский", "dt_load": "21.01.2026", "dt_customs_arrival": "17.02.2026", "dt_customs_release": "18.02.2026", "dt_delivery_planned": "20.02.2026", "qty": 5388, "boxes": 244, "volume": 18, "amount": "623 253 ¥", "customs_plan": null}, {"id": "71", "status": "ДОСТАВЛЕН", "status_key": "доставлен", "supplier": "Hangzhou Qianyi Import and Export Co., Ltd.", "goods": "брюки", "note": "", "carrier": "Капитан", "transport": "АВТО сборка", "origin": "Hangzhou", "customs_place": "Акуловский", "dt_load": "30.01.2026", "dt_customs_arrival": "06.03.2026", "dt_customs_release": "15.03.2026", "dt_delivery_planned": "16.03.2026", "qty": 6160, "boxes": 254, "volume": 18, "amount": "725 678 ¥", "customs_plan": null}, {"id": "72", "status": "ДОСТАВЛЕН", "status_key": "доставлен", "supplier": "DONGGUAN QIANFAN TRADING CO., LTD", "goods": "джинсы Jane", "note": "", "carrier": "Капитан", "transport": "АВТО сборка", "origin": "Foshan", "customs_place": "Акуловский", "dt_load": "08.02.2026", "dt_customs_arrival": "01.03.2026", "dt_customs_release": "02.03.2026", "dt_delivery_planned": "03.03.2026", "qty": 5190, "boxes": 163, "volume": 11, "amount": "534 544 ¥", "customs_plan": null}, {"id": "68-2", "status": "ДОСТАВЛЕН", "status_key": "доставлен", "supplier": "конфискованный товар", "goods": "брюки", "note": "", "carrier": "Капитан", "transport": "", "origin": "", "customs_place": "Акуловский", "dt_load": null, "dt_customs_arrival": null, "dt_customs_release": "19.04.2026", "dt_delivery_planned": null, "qty": null, "boxes": null, "volume": null, "amount": null, "customs_plan": null}, {"id": "73", "status": "ДОСТАВЛЕН", "status_key": "доставлен", "supplier": "Hangzhou Qianyi Import and Export Co., Ltd.", "goods": "брюки шерсть", "note": "", "carrier": "Капитан", "transport": "АВТО сборка", "origin": "Hangzhou", "customs_place": "Акуловский", "dt_load": "06.05.2026", "dt_customs_arrival": "30.05.2026", "dt_customs_release": "01.06.2026", "dt_delivery_planned": "02.06.2026", "qty": 5424, "boxes": 249, "volume": 18, "amount": "706 191 ¥", "customs_plan": null}, {"id": "74", "status": "ДОСТАВЛЕН", "status_key": "доставлен", "supplier": "DONGGUAN QIANFAN TRADING CO., LTD", "goods": "джинсы Jane", "note": "", "carrier": "Капитан", "transport": "АВТО сборка", "origin": "Foshan", "customs_place": "Акуловский", "dt_load": "18.05.2026", "dt_customs_arrival": "13.06.2026", "dt_customs_release": "14.06.2026", "dt_delivery_planned": "15.06.2026", "qty": 3540, "boxes": 139, "volume": 9, "amount": "370 352 ¥", "customs_plan": null}, {"id": "75", "status": "ДОСТАВЛЕН", "status_key": "доставлен", "supplier": "Hangzhou Qianyi Import and Export Co., Ltd.", "goods": "брюки", "note": "", "carrier": "Траско", "transport": "АВТО сборка", "origin": "Hangzhou", "customs_place": "Акуловский", "dt_load": "20.05.2026", "dt_customs_arrival": "30.06.2026", "dt_customs_release": "30.06.2026", "dt_delivery_planned": "02.07.2026", "qty": 3157, "boxes": 96, "volume": 7, "amount": "357 465 ¥", "customs_plan": null}, {"id": "76", "status": "ДОСТАВЛЕН", "status_key": "доставлен", "supplier": "DONGGUAN LONGSHENG SUPPLY CHAIN CO.,LTD", "goods": "обувь", "note": "", "carrier": "Капитан", "transport": "АВТО часть", "origin": "Foshan", "customs_place": "Каширский", "dt_load": "08.06.2026", "dt_customs_arrival": "08.07.2026", "dt_customs_release": "09.07.2026", "dt_delivery_planned": "10.07.2026", "qty": 780, "boxes": 84, "volume": 10, "amount": "202 215 ¥", "customs_plan": null}, {"id": "77", "status": "ДОСТАВЛЕН", "status_key": "доставлен", "supplier": "Foshan Ruiniu Clothing Co.,Ltd", "goods": "куртки зима", "note": "едет с 79й", "carrier": "Тетра", "transport": "АВТО", "origin": "", "customs_place": "Забайкальск", "dt_load": "10.07.2026", "dt_customs_arrival": "27.07.2026", "dt_customs_release": "28.07.2026", "dt_delivery_planned": "10.08.2026", "qty": 2999, "boxes": 348, "volume": 47, "amount": "967 910 ¥", "customs_plan": null}, {"id": "78", "status": "ДОСТАВЛЕН", "status_key": "доставлен", "supplier": "DONGGUAN LONGSHENG SUPPLY CHAIN CO.,LTD", "goods": "обувь зима", "note": "едет в общей сборной машине", "carrier": "Тетра", "transport": "АВТО часть", "origin": "Dongguan", "customs_place": "Забайкальск", "dt_load": "04.07.2026", "dt_customs_arrival": "23.07.2026", "dt_customs_release": "23.07.2026", "dt_delivery_planned": "11.08.2026", "qty": 2120, "boxes": 212, "volume": 31, "amount": "625 100 ¥", "customs_plan": null}, {"id": "79", "status": "ДОСТАВЛЕН", "status_key": "доставлен", "supplier": "Hangzhou Qianyi Import and Export Co., Ltd.", "goods": "куртки осень", "note": "едет с 78й", "carrier": "Тетра", "transport": "АВТО", "origin": "", "customs_place": "Забайкальск", "dt_load": "12.07.2026", "dt_customs_arrival": "27.07.2026", "dt_customs_release": "28.07.2026", "dt_delivery_planned": "10.08.2026", "qty": 6935, "boxes": 289, "volume": 28, "amount": "1 330 305 ¥", "customs_plan": null}, {"id": "80", "status": "В ПУТИ", "status_key": "в пути", "supplier": "DONGGUAN QIANFAN TRADING CO., LTD", "goods": "джинсы Jane", "note": "сборка Капитан", "carrier": "Капитан", "transport": "АВТО сборка", "origin": "", "customs_place": "Акуловский", "dt_load": "01.08.2026", "dt_customs_arrival": "30.08.2026", "dt_customs_release": "01.09.2026", "dt_delivery_planned": "02.09.2026", "qty": 1376, "boxes": 45, "volume": 3, "amount": "146 244 ¥", "customs_plan": "600 000"}, {"id": "81", "status": "В ПУТИ", "status_key": "в пути", "supplier": "Hangzhou Qianyi Import and Export Co., Ltd.", "goods": "куртки зима", "note": "едет в общей сборной машине", "carrier": "Капитан", "transport": "АВТО часть", "origin": "", "customs_place": "Каширский", "dt_load": "08.08.2026", "dt_customs_arrival": "28.08.2026", "dt_customs_release": "30.08.2026", "dt_delivery_planned": "31.08.2026", "qty": 2904, "boxes": 348, "volume": 61, "amount": "976 805 ¥", "customs_plan": "4 600 000"}, {"id": "82", "status": "В ПУТИ", "status_key": "в пути", "supplier": "Hangzhou Qianyi Import and Export Co., Ltd.", "goods": "брюки", "note": "сборка Капитан", "carrier": "Капитан", "transport": "АВТО сборка", "origin": "", "customs_place": "Акуловский", "dt_load": "20.08.2026", "dt_customs_arrival": "18.09.2026", "dt_customs_release": "20.09.2026", "dt_delivery_planned": "21.09.2026", "qty": 4888, "boxes": 177, "volume": 9, "amount": "614 460 ¥", "customs_plan": "2 800 000"}];
+const STATUS_STYLE = {"доставлен": {"label": "Доставлено", "color": "#1a7f37", "bg": "#dcfce7"}, "в пути": {"label": "В пути", "color": "#9a5b00", "bg": "#fef3c7"}};
+const DEFAULT_STYLE = { color: "#374151", bg: "#e5e7eb" };
+
+function styleFor(statusKey) {
+  return STATUS_STYLE[statusKey] || DEFAULT_STYLE;
+}
+
+function renderSummary(data) {
+  const total = data.length;
+  const delivered = data.filter(d => d.status_key === "доставлен").length;
+  const inTransit = data.filter(d => d.status_key === "в пути").length;
+  const totalQty = data.reduce((s, d) => s + (Number(d.qty) || 0), 0);
+  const totalBoxes = data.reduce((s, d) => s + (Number(d.boxes) || 0), 0);
+
+  const cards = [
+    ["Всего заявок", total],
+    ["Доставлено", delivered],
+    ["В пути", inTransit],
+    ["Штук, всего", totalQty.toLocaleString("ru-RU")],
+    ["Коробок, всего", totalBoxes.toLocaleString("ru-RU")],
+  ];
+  document.getElementById("summary").innerHTML = cards.map(([label, num]) =>
+    `<div class="card"><div class="num">${num}</div><div class="label">${label}</div></div>`
+  ).join("");
+}
+
+function populateStatusFilter(data) {
+  const sel = document.getElementById("statusFilter");
+  const statuses = [...new Set(data.map(d => d.status))];
+  statuses.forEach(s => {
+    const opt = document.createElement("option");
+    opt.value = s;
+    opt.textContent = s;
+    sel.appendChild(opt);
+  });
+}
+
+const TODAY = (() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; })();
+
+function parseRuDate(s) {
+  if (!s) return null;
+  const m = /^(\d{1,2})\.(\d{1,2})\.(\d{4})$/.exec(String(s).trim());
+  if (!m) return null;
+  const d = new Date(Number(m[3]), Number(m[2]) - 1, Number(m[1]));
+  d.setHours(0, 0, 0, 0);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+function stepState(rec) {
+  // Этап считается пройденным только если дата указана И уже наступила.
+  // Дата в будущем — это план: галочку не ставим, помечаем «план».
+  const steps = [
+    { key: "load",     label: "Загрузка",            date: rec.dt_load },
+    { key: "customs",  label: "Прибытие на таможню", date: rec.dt_customs_arrival },
+    { key: "release",  label: "Выпуск с таможни",    date: rec.dt_customs_release },
+    { key: "delivery", label: "Доставка",            date: rec.dt_delivery_planned },
+  ];
+
+  let lastDoneIdx = -1;
+  steps.forEach((s, i) => {
+    const d = parseRuDate(s.date);
+    s.planned = d !== null && d > TODAY;   // дата ещё не наступила
+    s.done = !!s.date && !s.planned;       // дата есть и уже прошла
+    if (s.done) lastDoneIdx = i;
+  });
+
+  // последний шаг закрываем только когда заявка реально доставлена
+  if (steps[3].done && rec.status_key !== "доставлен") {
+    steps[3].done = false;
+    if (lastDoneIdx === 3) lastDoneIdx = 2;
+  }
+
+  const currentIdx = Math.min(lastDoneIdx + 1, 3);
+  steps.forEach((s, i) => { s.current = (i === currentIdx && !s.done); });
+  return steps;
+}
+
+function renderCard(rec) {
+  const st = styleFor(rec.status_key);
+  const steps = stepState(rec);
+  const stepsHtml = steps.map(s => `
+    <div class="step ${s.done ? "done" : ""} ${s.current ? "current" : ""} ${s.planned ? "planned" : ""} ${(s.key === "customs" && s.planned) ? "customs-pending" : ""}">
+      <div class="line"></div>
+      <div class="dot">${s.done ? "✓" : ""}</div>
+      <div class="lbl">${s.label}</div>
+      <div class="date">${s.date || "—"}</div>
+      ${s.planned ? `<div class="plan-tag">план</div>` : ""}
+    </div>
+  `).join("");
+
+  const activeClass = rec.status_key === "в пути" ? "active-transit" : "";
+  return `
+  <div class="row-card ${activeClass}" data-id="${rec.id}" data-status="${rec.status}"
+       data-search="${(rec.id + " " + rec.supplier + " " + rec.carrier + " " + rec.customs_place).toLowerCase()}">
+    <div class="row-top">
+      <div>
+        <div class="row-id">Заявка № ${rec.id}</div>
+        <div class="row-sub">
+          <span class="supplier">${rec.supplier || "—"}</span>${rec.goods ? ` <span class="goods">${rec.goods}</span>` : ""}
+          <span class="sub-dim">· перевозчик: ${rec.carrier || "—"}${rec.transport ? " · " + rec.transport : ""}</span>
+        </div>
+        ${rec.note ? `<div class="note">${rec.note}</div>` : ""}
+      </div>
+      <span class="badge" style="color:${st.color}; background:${st.bg}">${rec.status}</span>
+    </div>
+    <div class="meta">
+      <div><span class="k">Место таможни</span><span class="v">${rec.customs_place || "—"}</span></div>
+      <div><span class="k">Кол-во штук</span><span class="v">${rec.qty ?? "—"}</span></div>
+      <div><span class="k">Кол-во коробок</span><span class="v">${rec.boxes ?? "—"}</span></div>
+      <div><span class="k">Объём, м³</span><span class="v">${rec.volume ?? "—"}</span></div>
+      <div><span class="k">Сумма инвойса</span><span class="v">${rec.amount || "—"}</span></div>
+      <div><span class="k">План. тамож. платежи, ₽</span><span class="v">${rec.customs_plan || "—"}</span></div>
+      <div><span class="k">${rec.status_key === "доставлен" ? "Дата доставки" : "Плановая доставка"}</span><span class="v">${rec.dt_delivery_planned || "—"}</span></div>
+    </div>
+    <div class="timeline">${stepsHtml}</div>
+  </div>`;
+}
+
+function applyFilters() {
+  const q = document.getElementById("search").value.trim().toLowerCase();
+  const statusVal = document.getElementById("statusFilter").value;
+  let visible = 0;
+  document.querySelectorAll(".row-card").forEach(card => {
+    const matchesQ = !q || card.dataset.search.includes(q);
+    const matchesStatus = !statusVal || card.dataset.status === statusVal;
+    const show = matchesQ && matchesStatus;
+    card.style.display = show ? "" : "none";
+    if (show) visible++;
+  });
+  document.getElementById("emptyState").style.display = visible === 0 ? "block" : "none";
+}
+
+function sortNotDeliveredFirst(data) {
+  // 1) недоставленные (в пути) — всегда сверху, порядок как в файле
+  // 2) доставленные — ниже, по дате доставки на склад, свежие первыми
+  //    (заявки без даты уходят в самый конец)
+  return data.slice().sort((a, b) => {
+    const pa = a.status_key === "доставлен" ? 1 : 0;
+    const pb = b.status_key === "доставлен" ? 1 : 0;
+    if (pa !== pb) return pa - pb;
+    if (pa === 0) return 0;               // порядок «в пути» не трогаем
+
+    const da = parseRuDate(a.dt_delivery_planned);
+    const db = parseRuDate(b.dt_delivery_planned);
+    if (!da && !db) return 0;
+    if (!da) return 1;                     // без даты — в конец
+    if (!db) return -1;
+    return db - da;                        // по убыванию: свежие выше
+  });
+}
+
+const SORTED_DATA = sortNotDeliveredFirst(DATA);
+
+renderSummary(SORTED_DATA);
+populateStatusFilter(SORTED_DATA);
+document.getElementById("grid").innerHTML = SORTED_DATA.map(renderCard).join("");
+document.getElementById("search").addEventListener("input", applyFilters);
+document.getElementById("statusFilter").addEventListener("change", applyFilters);
+</script>
+</body>
+</html>
